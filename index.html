@@ -292,7 +292,7 @@
   for(let i=0;i<6;i++){
     wmList.push({x:Math.random(), y:Math.random(), s:0.13+Math.random()*0.06, a:0.05+Math.random()*0.05, m:MARKS[Math.floor(Math.random()*MARKS.length)]});
   }
-  function drawPoster(cv){
+  function drawPoster(cv, withWatermark){
     const g=cv.getContext('2d');
     cv.width=POSTER_W; cv.height=POSTER_H;
     g.clearRect(0,0,POSTER_W,POSTER_H);
@@ -311,15 +311,17 @@
       g.fillStyle='rgba(0,0,0,0.28)'; g.fillRect(0,0,POSTER_W,POSTER_H);
       g.restore();
     }
-    // 水印（画在海报范围内）
-    wmList.forEach(w=>{
-      g.save();
-      g.globalAlpha=w.a; g.fillStyle='#ffffff';
-      g.font='800 '+Math.round(POSTER_W*w.s)+'px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
-      g.textAlign='left';
-      g.fillText(w.m, w.x*POSTER_W, w.y*POSTER_H);
-      g.restore();
-    });
+    // 水印（仅全屏截屏时才随机生成并绘制）
+    if(withWatermark){
+      wmList.forEach(w=>{
+        g.save();
+        g.globalAlpha=w.a; g.fillStyle='#ffffff';
+        g.font='800 '+Math.round(POSTER_W*w.s)+'px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+        g.textAlign='left';
+        g.fillText(w.m, w.x*POSTER_W, w.y*POSTER_H);
+        g.restore();
+      });
+    }
     // 磨砂卡片
     const lines=[
       {txt:curDate(), size:58, weight:800, ls:2, sp:1.2},
@@ -359,7 +361,10 @@
   function curTime(){const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
   function roundRect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
   const cv1=document.getElementById('posterCanvas'), cv2=document.getElementById('pfCanvas');
-  function renderPosters(){ drawPoster(cv1); drawPoster(cv2); }
+  function renderPosters(){
+    drawPoster(cv1,false);                       // 第一步预览：干净无水印
+    if(posterFull.classList.contains('show')) drawPoster(cv2,true);  // 全屏才画水印
+  }
   bg.onload=renderPosters; if(bg.complete) renderPosters();
   setInterval(renderPosters,1000);
 
@@ -377,7 +382,15 @@
 
   // 第一步：海报/绿色按钮 → 全屏打开海报（截图用），不跳小红书
   const posterFull=document.getElementById('posterFull');
-  function openPosterFull(){posterFull.classList.add('show');}
+  function openPosterFull(){
+    // 打开全屏时才随机生成水印
+    wmList.length=0;
+    for(let i=0;i<6;i++){
+      wmList.push({x:Math.random(), y:Math.random(), s:0.13+Math.random()*0.06, a:0.05+Math.random()*0.05, m:MARKS[Math.floor(Math.random()*MARKS.length)]});
+    }
+    posterFull.classList.add('show');
+    drawPoster(cv2,true);
+  }
   function closePosterFull(){posterFull.classList.remove('show');}
   document.getElementById('poster').addEventListener('click',openPosterFull);
   document.getElementById('posterBtn').addEventListener('click',openPosterFull);
