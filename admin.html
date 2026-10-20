@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的后台 · 数据看板</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  body{background:#F5F6FB;color:#1f2430;min-height:100vh;padding:20px;}
+  .wrap{max-width:720px;margin:0 auto;}
+  h1{font-size:20px;margin-bottom:16px;}
+  /* 登录屏 */
+  .lock{max-width:360px;margin:12vh auto;background:#fff;border-radius:18px;padding:30px;box-shadow:0 8px 30px rgba(124,58,237,.08);}
+  .lock h2{font-size:18px;margin-bottom:16px;}
+  .lock input{width:100%;padding:12px 14px;border:1.5px solid #E6E9F2;border-radius:10px;font-size:15px;margin-bottom:12px;outline:none;}
+  .lock input:focus{border-color:#7C5CF0;}
+  .lock button{width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#7C5CF0,#E73B86);color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+  .lock .err{color:#E73B86;font-size:13px;margin-top:8px;display:none;}
+  /* 看板 */
+  .hidden{display:none;}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  .card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.04);}
+  .card .num{font-size:34px;font-weight:900;color:#7C5CF0;line-height:1.1;}
+  .card.green .num{color:#22c55e;}
+  .card .lbl{font-size:13px;color:#8b8b8b;margin-top:6px;}
+  .panel{background:#fff;border-radius:16px;padding:18px;box-shadow:0 4px 16px rgba(0,0,0,.04);}
+  .panel h3{font-size:15px;margin-bottom:12px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:9px 6px;border-bottom:1px solid #F0F2F8;}
+  th{color:#8b8b8b;font-weight:600;}
+  .empty{color:#aaa;text-align:center;padding:24px;font-size:13px;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .topbar button{padding:8px 14px;border:1.5px solid #E6E9F2;background:#fff;border-radius:9px;font-size:13px;cursor:pointer;}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- 登录屏 -->
+  <div class="lock" id="lock">
+    <h2>🔒 管理员登录</h2>
+    <input type="password" id="pwd" placeholder="输入管理密码">
+    <button id="loginBtn">进入后台</button>
+    <div class="err" id="err">密码不对，再试试</div>
+  </div>
+
+  <!-- 看板 -->
+  <div class="hidden" id="dash">
+    <div class="topbar">
+      <h1>📊 我的数据看板</h1>
+      <button id="refreshBtn">刷新</button>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="num" id="total">—</div><div class="lbl">累计成功获取资源</div></div>
+      <div class="card green"><div class="num" id="today">—</div><div class="lbl">今日新增</div></div>
+    </div>
+    <div class="panel">
+      <h3>最近获取记录 <span style="font-weight:400;color:#aaa;font-size:12px;">（最新在前）</span></h3>
+      <table>
+        <thead><tr><th>#</th><th>时间</th><th>来源</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="3" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ====== 你需要填的两个值（Supabase 项目里拿）======
+  const SUPABASE_URL = "https://你的项目.supabase.co";
+  const SUPABASE_ANON_KEY = "你的anon-key";
+  const ADMIN_PASSWORD = "123456"; // 后台密码，自己改
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // 登录
+  document.getElementById('loginBtn').onclick = tryLogin;
+  document.getElementById('pwd').addEventListener('keydown', e=>{if(e.key==='Enter')tryLogin();});
+  function tryLogin(){
+    if(document.getElementById('pwd').value === ADMIN_PASSWORD){
+      document.getElementById('lock').classList.add('hidden');
+      document.getElementById('dash').classList.remove('hidden');
+      loadData();
+    } else {
+      document.getElementById('err').style.display='block';
+    }
+  }
+  document.getElementById('refreshBtn').onclick = loadData;
+
+  async function loadData(){
+    // 取最近 100 条
+    const {data, error} = await sb
+      .from('events')
+      .select('created_at, source')
+      .order('created_at',{ascending:false})
+      .limit(100);
+    if(error){ document.getElementById('rows').innerHTML='<tr><td colspan="3" class="empty">读取失败：'+error.message+'<br>请先在 Supabase 建好 events 表</td></tr>'; return; }
+    document.getElementById('total').textContent = data.length + (data.length>=100?'+':'');
+    const today = new Date().toISOString().slice(0,10);
+    const t = data.filter(r=>r.created_at && r.created_at.slice(0,10)===today).length;
+    document.getElementById('today').textContent = t;
+    const tb = document.getElementById('rows');
+    if(!data.length){ tb.innerHTML='<tr><td colspan="3" class="empty">还没有人获取资源</td></tr>'; return; }
+    tb.innerHTML = data.map((r,i)=>{
+      const dt = new Date(r.created_at);
+      const s = dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate())+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
+      return `<tr><td>${data.length-i}</td><td>${s}</td><td>${r.source||'网页'}</td></tr>`;
+    }).join('');
+  }
+  function pad(n){return n<10?'0'+n:''+n;}
+</script>
+</body>
+</html>
