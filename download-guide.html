@@ -227,13 +227,15 @@
   });
 </script>
 <!-- 获取成功记数（Supabase） -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   const SB_URL="https://wfnvmiwonyhyynbrhkoh.supabase.co";
   const SB_KEY="sb_publishable_p-vZm-FE9-rO5u51iNWQuw_R-fLnEJd";
   try{
-    const sb=supabase.createClient(SB_URL,SB_KEY);
-    sb.from('events').insert({source:'网页'});
+    fetch(SB_URL+'/rest/v1/events', {
+      method:'POST',
+      headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+      body: JSON.stringify({source:'网页'})
+    });
   }catch(e){}
 </script>
 </body>

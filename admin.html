@@ -64,14 +64,11 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   // ====== 你需要填的两个值（Supabase 项目里拿）======
   const SUPABASE_URL = "https://wfnvmiwonyhyynbrhkoh.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_p-vZm-FE9-rO5u51iNWQuw_R-fLnEJd";
   const ADMIN_PASSWORD = "123456"; // 后台密码，自己改
-
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // 登录
   document.getElementById('loginBtn').onclick = tryLogin;
@@ -88,24 +85,26 @@
   document.getElementById('refreshBtn').onclick = loadData;
 
   async function loadData(){
-    // 取最近 100 条
-    const {data, error} = await sb
-      .from('events')
-      .select('created_at, source')
-      .order('created_at',{ascending:false})
-      .limit(100);
-    if(error){ document.getElementById('rows').innerHTML='<tr><td colspan="3" class="empty">读取失败：'+error.message+'<br>请先在 Supabase 建好 events 表</td></tr>'; return; }
-    document.getElementById('total').textContent = data.length + (data.length>=100?'+':'');
-    const today = new Date().toISOString().slice(0,10);
-    const t = data.filter(r=>r.created_at && r.created_at.slice(0,10)===today).length;
-    document.getElementById('today').textContent = t;
-    const tb = document.getElementById('rows');
-    if(!data.length){ tb.innerHTML='<tr><td colspan="3" class="empty">还没有人获取资源</td></tr>'; return; }
-    tb.innerHTML = data.map((r,i)=>{
-      const dt = new Date(r.created_at);
-      const s = dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate())+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
-      return `<tr><td>${data.length-i}</td><td>${s}</td><td>${r.source||'网页'}</td></tr>`;
-    }).join('');
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/events?select=created_at,source&order=created_at.desc&limit=100', {
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+      });
+      if(!res.ok){ document.getElementById('rows').innerHTML='<tr><td colspan="3" class="empty">读取失败：HTTP '+res.status+'</td></tr>'; return; }
+      const data = await res.json();
+      document.getElementById('total').textContent = data.length + (data.length>=100?'+':'');
+      const today = new Date().toISOString().slice(0,10);
+      const t = data.filter(r=>r.created_at && r.created_at.slice(0,10)===today).length;
+      document.getElementById('today').textContent = t;
+      const tb = document.getElementById('rows');
+      if(!data.length){ tb.innerHTML='<tr><td colspan="3" class="empty">还没有人获取资源</td></tr>'; return; }
+      tb.innerHTML = data.map((r,i)=>{
+        const dt = new Date(r.created_at);
+        const s = dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate())+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
+        return `<tr><td>${data.length-i}</td><td>${s}</td><td>${r.source||'网页'}</td></tr>`;
+      }).join('');
+    } catch(e){
+      document.getElementById('rows').innerHTML='<tr><td colspan="3" class="empty">读取失败：'+e.message+'</td></tr>';
+    }
   }
   function pad(n){return n<10?'0'+n:''+n;}
 </script>
