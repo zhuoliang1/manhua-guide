@@ -429,13 +429,53 @@
     if(need===0){submitBtn.textContent='✅ 提交审核';submitBtn.classList.add('ready');}
     else{submitBtn.textContent='📤 提交（还需 '+need+' 张截图）';submitBtn.classList.remove('ready');}
   }
-  submitBtn.addEventListener('click',()=>{
+  // Supabase 配置
+  const SB_URL="https://wfnvmiwonyhyynbrhkoh.supabase.co";
+  const SB_KEY="sb_publishable_p-vZm-FE9-rO5u51iNWQuw_R-fLnEJd";
+  async function getIP(){
+    try{ const r=await fetch("https://api.ipify.org?format=json"); const j=await r.json(); return j.ip||""; }
+    catch(e){ return ""; }
+  }
+  async function uploadImages(files){
+    const urls=[];
+    for(const f of files){
+      const ext=(f.name.split('.').pop()||'jpg').toLowerCase();
+      const fname=Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+ext;
+      try{
+        const r=await fetch(SB_URL+'/storage/v1/object/submissions/'+fname,{
+          method:'POST',
+          headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':f.type||'image/jpeg'},
+          body:f
+        });
+        if(r.ok) urls.push(SB_URL+'/storage/v1/object/public/submissions/'+fname);
+      }catch(e){}
+    }
+    return urls;
+  }
+  async function recordEvent(ip, images){
+    try{
+      // 同 IP 已记录过就不重复插入
+      const chk=await fetch(SB_URL+'/rest/v1/events?ip=eq.'+encodeURIComponent(ip)+'&select=id&limit=1',{
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}
+      });
+      const exist=await chk.json();
+      if(Array.isArray(exist) && exist.length) return;
+      await fetch(SB_URL+'/rest/v1/events',{
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+        body:JSON.stringify({source:'网页', ip:ip, images:(images||[]).join(',')})
+      });
+    }catch(e){}
+  }
+  submitBtn.addEventListener('click',async ()=>{
     if(files.length<3){showToast('⚠️ 还需上传 '+(3-files.length)+' 张截图');return;}
-    // AI 审核通过后跳转到资源领取页（对标网页）
     submitBtn.textContent='⏳ AI 审核中…';
     submitBtn.style.pointerEvents='none';
-    showToast('🎉 提交成功，AI 审核通过，正在跳转资源领取页…');
-    setTimeout(()=>{ location.href='download-guide.html'; }, 1200);
+    showToast('🎉 提交成功，正在保存…');
+    const ip=await getIP();
+    const imgs=await uploadImages(files);
+    await recordEvent(ip, imgs);
+    setTimeout(()=>{ location.href='download-guide.html'; }, 800);
   });
 
   // AI 机器人

@@ -91,12 +91,14 @@
 
   async function loadData(){
     try {
-      const res = await fetch(SUPABASE_URL + '/rest/v1/events?select=created_at,source&order=created_at.desc&limit=100', {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/events?select=created_at,source,ip,images&order=created_at.desc&limit=200', {
         headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
       });
       if(!res.ok){ document.getElementById('rows').innerHTML='<tr><td colspan="3" class="empty">读取失败：HTTP '+res.status+'</td></tr>'; return; }
       const data = await res.json();
-      document.getElementById('total').textContent = data.length + (data.length>=100?'+':'');
+      // 按 IP 去重统计（空IP按条数算）
+      const ips=new Set(); data.forEach(r=>{ if(r.ip) ips.add(r.ip); });
+      document.getElementById('total').textContent = ips.size || data.length;
       const today = new Date().toISOString().slice(0,10);
       const t = data.filter(r=>r.created_at && r.created_at.slice(0,10)===today).length;
       document.getElementById('today').textContent = t;
@@ -106,7 +108,9 @@
       tb.innerHTML = data.map((r,i)=>{
         const dt = new Date(r.created_at);
         const s = dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate())+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
-        return `<tr><td>${data.length-i}</td><td>${s}</td><td>${r.source||'网页'}</td></tr>`;
+        let imgs='';
+        if(r.images){ imgs = r.images.split(',').filter(Boolean).map(u=>`<img src="${u}" style="width:46px;height:60px;object-fit:cover;border-radius:6px;margin:1px;cursor:pointer;border:1px solid #eee;" onclick="window.open('${u}')">`).join(''); }
+        return `<tr><td>${data.length-i}</td><td>${s}</td><td>${r.source||'网页'}<div style="margin-top:4px;">${imgs}</div></td></tr>`;
       }).join('');
     } catch(e){
       document.getElementById('rows').innerHTML='<tr><td colspan="3" class="empty">读取失败：'+e.message+'</td></tr>';
