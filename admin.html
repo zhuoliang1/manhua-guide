@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>我的后台 · 数据看板</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
   body{background:#F5F6FB;color:#1f2430;min-height:100vh;padding:20px;}
@@ -55,6 +56,10 @@
       <div class="card green"><div class="num" id="today">—</div><div class="lbl">今日新增</div></div>
     </div>
     <div class="panel">
+      <h3>近 14 天获取趋势</h3>
+      <div id="chart" style="width:100%;height:260px;"></div>
+    </div>
+    <div class="panel">
       <h3>最近获取记录 <span style="font-weight:400;color:#aaa;font-size:12px;">（最新在前）</span></h3>
       <table>
         <thead><tr><th>#</th><th>时间</th><th>来源</th></tr></thead>
@@ -95,6 +100,7 @@
       const today = new Date().toISOString().slice(0,10);
       const t = data.filter(r=>r.created_at && r.created_at.slice(0,10)===today).length;
       document.getElementById('today').textContent = t;
+      renderChart(data);
       const tb = document.getElementById('rows');
       if(!data.length){ tb.innerHTML='<tr><td colspan="3" class="empty">还没有人获取资源</td></tr>'; return; }
       tb.innerHTML = data.map((r,i)=>{
@@ -107,6 +113,31 @@
     }
   }
   function pad(n){return n<10?'0'+n:''+n;}
+  let chart;
+  function renderChart(data){
+    // 统计近14天每天的数量（按本地日期）
+    const days=[]; const counts=[];
+    for(let i=13;i>=0;i--){
+      const d=new Date(); d.setDate(d.getDate()-i);
+      const key=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      days.push((d.getMonth()+1)+'/'+d.getDate());
+      counts.push(data.filter(r=>{ const rd=new Date(r.created_at); return rd.getFullYear()+'-'+pad(rd.getMonth()+1)+'-'+pad(rd.getDate())===key; }).length);
+    }
+    if(!chart) chart=echarts.init(document.getElementById('chart'));
+    chart.setOption({
+      grid:{left:36,right:16,top:24,bottom:28},
+      tooltip:{trigger:'axis'},
+      xAxis:{type:'category',data:days,axisLine:{lineStyle:{color:'#ddd'}},axisLabel:{color:'#888',fontSize:11}},
+      yAxis:{type:'value',minInterval:1,splitLine:{lineStyle:{color:'#f0f2f8'}},axisLabel:{color:'#888',fontSize:11}},
+      series:[{
+        type:'line',data:counts,smooth:true,
+        symbol:'circle',symbolSize:7,
+        lineStyle:{color:'#7C5CF0',width:3},
+        itemStyle:{color:'#7C5CF0'},
+        areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(124,92,240,.25)'},{offset:1,color:'rgba(124,92,240,0)'}]}}
+      }]
+    });
+  }
 </script>
 </body>
 </html>
