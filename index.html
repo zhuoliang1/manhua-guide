@@ -172,13 +172,8 @@
         <div class="step-head"><span class="badge">1</span><h3>第一步：全屏查看海报并截屏</h3></div>
         <p class="desc">点击下方图片进入全屏后截屏保存</p>
         <p class="desc warn-purple">⚠️ 一定要点击下方海报后确保在全屏状态截屏，否则会审核失败</p>
-        <div class="poster" id="poster">
-          <div class="time" id="clock">2026-01-01 00:00:00</div>
-          <div class="brand">次元書漫</div>
-          <div class="tag">次元書漫，旧热爱重逢</div>
-          <div class="platforms">安卓 / iOS / 电视 / 电脑 / iPad / 投屏</div>
-          <div class="site">认准官网：哈哈哈哈哈哈哈.com</div>
-          <div class="slogan">- 真零成本 · 追番看漫 -</div>
+        <div class="poster" id="poster" style="padding:0;overflow:hidden;background:#2a2a33;">
+          <canvas id="posterCanvas" style="width:100%;display:block;"></canvas>
         </div>
         <button class="btn-green" id="posterBtn">📱 全屏查看海报（截屏保存）</button>
       </div>
@@ -247,14 +242,7 @@
   <!-- 海报全屏遮罩 -->
   <div class="poster-full" id="posterFull">
     <div class="pf-close" id="pfClose">×</div>
-    <div class="pf-poster">
-      <div class="pf-time" id="pfClock">2026-01-01 00:00:00</div>
-      <div class="pf-brand">次元書漫</div>
-      <div class="pf-tag">次元書漫，旧热爱重逢</div>
-      <div class="pf-platforms">安卓 / iOS / 电视 / 电脑 / iPad / 投屏</div>
-      <div class="pf-site">认准官网：哈哈哈哈哈哈哈.com</div>
-      <div class="pf-slogan">- 真零成本 · 追番看漫 -</div>
-    </div>
+    <canvas id="pfCanvas" style="width:100%;max-width:420px;border-radius:20px;display:block;box-shadow:0 20px 60px rgba(0,0,0,.5);"></canvas>
     <div class="pf-tip">📱 截屏保存此海报后，返回继续下一步</div>
   </div>
 
@@ -289,14 +277,91 @@
   </div>
 
 <script>
-  // 实时时钟（同时同步到全屏海报）
+  // ===== 海报 canvas：模糊背景 + 磨砂卡片 + 随机水印 =====
   function pad(n){return n<10?'0'+n:''+n;}
-  function tick(){const d=new Date();
-    const s=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
-    document.getElementById('clock').textContent=s;
-    document.getElementById('pfClock').textContent=s;
+  const POSTER_W=1040, POSTER_H=1200;
+  const BGS=['poster-cymh/bg-1.jpg','poster-cymh/bg-2.jpg','poster-cymh/bg-3.jpg','poster-cymh/bg-4.jpg','poster-cymh/bg-5.jpg','poster-cymh/bg-6.jpg'];
+  const ENDS=['心头好归来','旧热爱重逢','初心意归来','温柔意重逢','旧欢喜归来','心头念重逢','温柔序归来','旧日甜重逢'];
+  const MARKS=['漫剧','看剧','全集','追剧','🎬','📺','✨'];
+  const MY_DOMAIN='哈哈哈哈哈哈哈.com';
+  const MY_END=ENDS[Math.floor(Math.random()*ENDS.length)];
+  const BG_URL=BGS[Math.floor(Math.random()*BGS.length)];
+  const bg=new Image(); bg.src=BG_URL;
+  // 随机水印（每次打开位置/字号/透明度都不同）
+  const wmList=[];
+  for(let i=0;i<6;i++){
+    wmList.push({x:Math.random(), y:Math.random(), s:0.13+Math.random()*0.06, a:0.05+Math.random()*0.05, m:MARKS[Math.floor(Math.random()*MARKS.length)]});
   }
-  tick(); setInterval(tick,1000);
+  function drawPoster(cv){
+    const g=cv.getContext('2d');
+    cv.width=POSTER_W; cv.height=POSTER_H;
+    g.clearRect(0,0,POSTER_W,POSTER_H);
+    // 底色
+    g.fillStyle='#2a2a33'; g.fillRect(0,0,POSTER_W,POSTER_H);
+    // 模糊底图
+    if(bg.complete && bg.naturalWidth){
+      const scale=Math.max(POSTER_W/bg.naturalWidth, POSTER_H/bg.naturalHeight);
+      const bw=bg.naturalWidth*scale, bh=bg.naturalHeight*scale;
+      g.save();
+      roundRect(g,0,0,POSTER_W,POSTER_H,20); g.clip();
+      try{ g.filter='blur(26px)'; }catch(e){}
+      g.drawImage(bg,(POSTER_W-bw)/2,(POSTER_H-bh)/2,bw,bh);
+      try{ g.filter='none'; }catch(e){}
+      // 黑色遮罩 0.28
+      g.fillStyle='rgba(0,0,0,0.28)'; g.fillRect(0,0,POSTER_W,POSTER_H);
+      g.restore();
+    }
+    // 水印（画在海报范围内）
+    wmList.forEach(w=>{
+      g.save();
+      g.globalAlpha=w.a; g.fillStyle='#ffffff';
+      g.font='800 '+Math.round(POSTER_W*w.s)+'px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+      g.textAlign='left';
+      g.fillText(w.m, w.x*POSTER_W, w.y*POSTER_H);
+      g.restore();
+    });
+    // 磨砂卡片
+    const lines=[
+      {txt:curDate(), size:58, weight:800, ls:2, sp:1.2},
+      {txt:curTime(), size:58, weight:800, ls:2, sp:2.0},
+      {txt:'次元書漫', size:34, weight:400, ls:2, sp:1.9},
+      {txt:'次元書漫，'+MY_END, size:34, weight:300, ls:2, sp:1.8},
+      {txt:'安卓/iOS/电视/电脑/iPad/投屏', size:34, weight:300, ls:1.8, sp:1.8},
+      {txt:'认准官网: '+MY_DOMAIN, size:34, weight:500, ls:2, sp:1.8},
+      {txt:'- 真零成本 · 追番看漫 -', size:34, weight:300, ls:2, sp:1.8}
+    ];
+    let totalH=0; lines.forEach(l=>totalH+=Math.round(l.size*4/3)*l.sp);
+    const CARD_W=860, CARD_PAD=260, CARD_R=18;
+    const cardH=totalH+CARD_PAD;
+    const cardX=(POSTER_W-CARD_W)/2, cardY=(POSTER_H-cardH)/2;
+    g.save();
+    g.shadowColor='rgba(0,0,0,0.32)'; g.shadowBlur=24; g.shadowOffsetY=14;
+    g.fillStyle='rgba(0,0,0,0.32)';
+    roundRect(g,cardX,cardY,CARD_W,cardH,CARD_R); g.fill();
+    g.restore();
+    const cg=g.createLinearGradient(0,cardY,0,cardY+cardH);
+    cg.addColorStop(0,'rgba(255,255,255,0.22)'); cg.addColorStop(1,'rgba(248,248,248,0.18)');
+    g.fillStyle=cg; roundRect(g,cardX,cardY,CARD_W,cardH,CARD_R); g.fill();
+    g.strokeStyle='rgba(255,255,255,0.28)'; g.lineWidth=1.5;
+    roundRect(g,cardX,cardY,CARD_W,cardH,CARD_R); g.stroke();
+    // 文字
+    g.fillStyle='#ffffff'; g.textAlign='center'; g.textBaseline='middle';
+    let y=cardY+CARD_PAD/2;
+    lines.forEach(l=>{
+      const lh=Math.round(l.size*4/3)*l.sp;
+      g.font=l.weight+' '+l.size+'px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+      g.shadowColor='rgba(0,0,0,0.35)'; g.shadowBlur=6; g.shadowOffsetY=2;
+      g.fillText(l.txt, POSTER_W/2, y+lh/2);
+      y+=lh;
+    });
+  }
+  function curDate(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function curTime(){const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
+  function roundRect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+  const cv1=document.getElementById('posterCanvas'), cv2=document.getElementById('pfCanvas');
+  function renderPosters(){ drawPoster(cv1); drawPoster(cv2); }
+  bg.onload=renderPosters; if(bg.complete) renderPosters();
+  setInterval(renderPosters,1000);
 
   // 漂浮星星
   const colors=['#E73B86','#3B82F6','#7C5CF0','#C0C4D8'];
